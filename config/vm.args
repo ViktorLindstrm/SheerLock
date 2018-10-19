@@ -1,0 +1,6 @@
+-sname idp
+
+-setcookie idp_cookie
+
++K true
++A30
