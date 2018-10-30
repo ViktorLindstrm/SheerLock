@@ -177,7 +177,7 @@ handle_call({remove_consent,{RPId,Consent}}, _From, #state{rps = RPS} = State) -
 handle_call({add_scope_to_consent,{RPId,Scope,Consent}}, _From, #state{rps = RPS} = State) ->
     Reply = case lists:keyfind(RPId,1,RPS) of
                 {RPId,RPPid} ->
-                    gen_server:call(RPPid,{add_scope_to_consent,{Scope,Consent}});
+                    gen_server:call(RPPid,{add_scope_to_consent,{Consent,Scope}});
                 false ->
                     {error, no_such_rp}
             end,
@@ -186,7 +186,7 @@ handle_call({add_scope_to_consent,{RPId,Scope,Consent}}, _From, #state{rps = RPS
 handle_call({remove_scope_to_consent,{RPId,Scope,Consent}}, _From, #state{rps = RPS} = State) ->
     Reply = case lists:keyfind(RPId,1,RPS) of
                 {RPId,RPPid} ->
-                    gen_server:call(RPPid,{remove_scope_to_consent,{Scope,Consent}});
+                    gen_server:call(RPPid,{remove_scope_to_consent,{Consent,Scope}});
                 false ->
                     {error, no_such_rp}
             end,
@@ -220,13 +220,15 @@ get_scopes(RPId) -> gen_server:call(?MODULE,{get_scopes,RPId}).
 get_consent(RPId,Consent) -> gen_server:call(?MODULE,{get_consent,{RPId,Consent}}).
 get_unconfirmed_scopes(RPId) -> gen_server:call(?MODULE,{get_unconfirmed_scopes,RPId}).
 add_scope(RPId,Scope) -> gen_server:call(?MODULE,{add_scope,{RPId,Scope}}).
-remove_scope(RPId,Scope) -> gen_server:call(?MODULE,{remove_scopes,{RPId,Scope}}).
+remove_scope(RPId,Scope) -> gen_server:call(?MODULE,{remove_scope,{RPId,Scope}}).
 
 get_consents(RPId) -> gen_server:call(?MODULE,{get_consents,RPId}).
 add_consent(RPId,Consent) -> gen_server:call(?MODULE,{add_consent,{RPId,Consent}}).
 remove_consent(RPId,Consent) -> gen_server:call(?MODULE,{remove_consent,{RPId,Consent}}).
 
-add_scope_to_consent(RPId,Scope,Consent) ->gen_server:call(?MODULE,{add_scope_to_consent,{RPId,Scope,Consent}}).
+add_scope_to_consent(RPId,Scope,Consent) ->
+    remove_scope_to_consent(RPId,Scope,unconfirmed),
+    gen_server:call(?MODULE,{add_scope_to_consent,{RPId,Scope,Consent}}).
 remove_scope_to_consent(RPId,Scope,Consent) ->gen_server:call(?MODULE,{remove_scope_to_consent,{RPId,Scope,Consent}}).
 
 

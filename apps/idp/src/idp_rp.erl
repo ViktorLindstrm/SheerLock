@@ -154,7 +154,7 @@ handle_call({add_scope_to_consent,{Consent,Scope}}, _From,  #state{consents = Co
 
 
 handle_call({remove_scope_to_consent,{Consent,Scope}}, _From,  #state{consents = Consents} = State) ->
-    Reply = case ets:lookup(Consent,Consents) of 
+    Reply = case ets:lookup(Consents,Consent) of 
                 [{Concent,CScopes}] ->
                     case lists:member(Scope,CScopes) of 
                         true -> 
