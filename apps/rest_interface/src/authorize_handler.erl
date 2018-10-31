@@ -23,23 +23,25 @@ method(<<"POST">>,Req0,Opts)->
     BinPassword = binary_to_list(Password),
     Req1 = case idp_mng:validate_user(BinUser,BinPassword) of
               {ok,true} ->
-                  {ok,UserConsents} = idp_user:get_consent(BinUser),
+                  {ok,UserScopes} = idp_user:get_scopes(BinUser),
                   {ok,ScopeConsents} = idp_mng:get_consents(BinClientId),
                   RPScopes = lists:flatten([get_scopes_from_consent(BinClientId,Consent) || Consent <- ScopeConsents]),
                   case is_in_list(BinScopes,RPScopes) of 
                       [] -> 
-                          case is_in_list(UserConsents,[BinScopes]) of
+                          case is_in_list(BinScopes,UserScopes) of
                               [] ->  
-                                  io:format("Scopes: ~p, UserConsent: ~p, RP scopes: ~p~n",[Scopes,UserConsents,RPScopes]),
+                                  logger:debug("Scopes: ~p, UserConsent: ~p, RP scopes: ~p~n",[Scopes,UserScopes,RPScopes]),
                                   {ok,Code} = idp_mng:authorize(BinClientId,RedirectUri),
                                   BinCode = erlang:list_to_binary(Code),
                                   Response = <<RedirectUri/binary,<<"?code=">>/binary,BinCode/binary,<<"&state=">>/binary,State/binary>>,
                                   _SetCode = idp_user:set_code(binary_to_atom(Username,utf8),Code),
                                   cowboy_req:reply(302, #{<<"Location">> => Response}, <<>>, Req);
                               _ ->
-                                 io:format("User needs to allow scopes")
+                                  MissingScopes = is_in_list(BinScopes,UserScopes),
+                                  [idp_user:add_scope(BinUser,S) || S <- MissingScopes],
+                                  logger:debug("Added User scopes: ~p~n",[MissingScopes])
                           end;
-                          _ -> io:format("Scopes not allowed for RP/Clilent")
+                          R -> io:format("Scopes not allowed for RP/Clilent: ~p~n",[R])
                   end;
               {ok,false} ->
                   io:format("Bad password"),
@@ -102,10 +104,9 @@ get_scopes_from_consent(RPName,Consent) ->
     Scopes.
 
 is_in_list(Checks,Checkee) ->
-    io:format("Checks: ~p, Checkee: ~p~n",[Checks,Checkee]),
-    [X || X <- [Checks], not(lists:member(X,Checkee))].
+    ResList = lists:flatten([X || X <- [Checks], not(lists:member(X,Checkee))]),
+    logger:debug("Res: ~p, Checks: ~p, Checkee: ~p~n",[ResList,Checks,Checkee]),
+    ResList.
    %[X || X <- Checks, not(lists:member(X,Checkee))]
-
-
 
 

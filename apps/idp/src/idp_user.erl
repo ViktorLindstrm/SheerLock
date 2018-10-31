@@ -8,7 +8,8 @@
          set_token/2,
          expire_token/1,
          get_userviatoken/1,
-         get_consent/1
+         get_scopes/1,
+         add_scope/2
         ]).
 
 %% gen_server callbacks
@@ -24,7 +25,7 @@
                username         :: atom(),
                name             :: list(),
                password         :: list(),
-               consents         :: list(),
+               scopes = []      :: list(),
                token = undefined,
                code = undefined :: 'undefined' | list()
               }).
@@ -89,19 +90,19 @@ handle_call({register,{Username,Password}}, _From, #state{users = Users} = State
                        end,
     {reply, Reply, State};
 
-handle_call({get_consent,UserID}, _From, #state{users = Users} = State) ->
+handle_call({get_scopes,UserID}, _From, #state{users = Users} = State) ->
     Reply = case get_user(UserID,Users) of 
-                {ok,#user{consents = Consents}} -> 
-                    {ok, Consents};
+                {ok,#user{scopes = Scopes}} -> 
+                    {ok, Scopes};
                 {error,_} -> 
                     {error, no_such_user}
             end,
     {reply, Reply, State};
 
-handle_call({add_consent,{UserID,Consent}}, _From, #state{users = Users} = State) ->
+handle_call({add_scope,{UserID,Scope}}, _From, #state{users = Users} = State) ->
     Reply = case get_user(UserID,Users) of 
                 {ok,Userdata} -> 
-                    add_consent(Userdata,Consent,Users);
+                    add_scope(Userdata,Scope,Users);
                 {error,_} -> 
                     {error, no_such_user}
             end,
@@ -130,7 +131,8 @@ set_code(User,Code) -> gen_server:call(?MODULE,{set_code,{User,Code}}).
 set_token(Code,Token) -> gen_server:call(?MODULE,{set_token,{Code,Token}}).
 expire_token(Token) -> gen_server:call(?MODULE,{expire_token,Token}).
 get_userviatoken(Token) -> gen_server:call(?MODULE,{get_userviatoken,Token}).
-get_consent(UserId) -> gen_server:call(?MODULE,{get_consent,UserId}).
+get_scopes(UserId) -> gen_server:call(?MODULE,{get_scopes,UserId}).
+add_scope(UserId,Scope) -> gen_server:call(?MODULE,{add_scope,{UserId,Scope}}).
 
 get_user(UserID,Users) ->
     Reply = case ets:select(Users, ets:fun2ms(fun(N = {_,#user{username=ID}}) when ID == UserID -> N end)) of
@@ -144,8 +146,8 @@ get_user(UserID,Users) ->
 set_user(User,Users) ->
     ets:insert(Users,{User#user.username,User}).
 
-add_consent(User,Consent,Users) ->
-    ets:insert(Users,{User#user.username,User#user{consents=User#user.consents++Consent}}).
+add_scope(User,Scope,Users) ->
+    ets:insert(Users,{User#user.username,User#user{scopes=[Scope|User#user.scopes]}}).
 
 set_code(User,Code,Users) ->
     ets:insert(Users,{User#user.username,User#user{code=Code}}).
