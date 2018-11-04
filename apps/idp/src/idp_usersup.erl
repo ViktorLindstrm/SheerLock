@@ -1,38 +1,51 @@
-%%%-------------------------------------------------------------------
-%% @doc idp top level supervisor.
-%% @end
-%%%-------------------------------------------------------------------
-
 -module(idp_usersup).
 
 -behaviour(supervisor).
 
 %% API
--export([start_link/0,start_child/0]).
+-export([start_link/0,
+        start_child/1]).
+
 
 %% Supervisor callbacks
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
 
-%%====================================================================
-%% API functions
-%%====================================================================
+%%%===================================================================
+%%% API functions
+%%%===================================================================
 
-start_child() ->
-  supervisor:start_child(?SERVER, []).
-
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts the supervisor
+%%
+%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
+%% @end
+%%--------------------------------------------------------------------
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
+start_child(UserData) ->
+    supervisor:start_child(?SERVER, [UserData]).
+%%%===================================================================
+%%% Supervisor callbacks
+%%%===================================================================
 
-%%====================================================================
-%% Supervisor callbacks
-%%====================================================================
-
-%% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Whenever a supervisor is started using supervisor:start_link/[2,3],
+%% this function is called by the new process to find out about
+%% restart strategy, maximum restart frequency and child
+%% specifications.
+%%
+%% @spec init(Args) -> {ok, {SupFlags, [ChildSpec]}} |
+%%                     ignore |
+%%                     {error, Reason}
+%% @end
+%%--------------------------------------------------------------------
 init([]) ->
-
     RestartStrategy = simple_one_for_one,
     MaxRestarts = 0,
     MaxSecondsBetweenRestarts = 1,
@@ -45,12 +58,11 @@ init([]) ->
 
     AChild = {'idp_user', {'idp_user', start_link, []}, Restart, Shutdown, Type, ['idp_user']},
 
-    %User = {'idp_user', {'idp_user', start_link, []}, Restart, Shutdown, TypeW, ['idp_user']},
-    {ok, { {SupFlags}, [AChild]} }.
+    {ok, {SupFlags, [AChild]}}.
 
-%%====================================================================
-%% Internal functions
-%%====================================================================
-%%
-%%
-%%
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+
+
