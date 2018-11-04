@@ -76,7 +76,7 @@ handle_call({change_pass,OldPass,NewPass}, _From, #state{password = RP_Pass} = S
     {reply, Reply, NewState};
 
 handle_call({expire_token,AccessToken}, _From,  State) ->
-    Reply = idp_user:expire_token(AccessToken),
+    Reply = idp_usermng:expire_token(AccessToken),
     {reply, Reply, State};
 
 handle_call({add_consent,Consent}, _From,  #state{consents = Consents} = State) ->
@@ -186,7 +186,7 @@ handle_call({validate_code,{Code,RedirectUri}}, _From, #state{codes = Codes} = S
                                        TokenType = "Bearer",
                                        ExpiresIn= "3600",
                                        Token = #token{access_token=AccessToken,token_type=TokenType,expires_in=ExpiresIn,expired=false,refresh_token=RefreshToken,created_time=erlang:timestamp()},
-                                       idp_user:set_token(Code,Token),
+                                       idp_usermng:set_token(Code,Token),
                                        erlang:spawn(?MODULE,clean_token,[erlang:self(),AccessToken,list_to_integer(ExpiresIn)]),
                                        RetToken = #{<<"access_token">> => list_to_binary(AccessToken), 
                                                     <<"token_type">> => list_to_binary(TokenType),

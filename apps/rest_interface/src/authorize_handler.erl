@@ -23,7 +23,7 @@ method(<<"POST">>,Req0,Opts)->
     BinPassword = binary_to_list(Password),
     Req1 = case idp_mng:validate_user(BinUser,BinPassword) of
               {ok,true} ->
-                  {ok,UserScopes} = idp_user:get_scopes(BinUser),
+                  {ok,UserScopes} = idp_usermng:get_scopes(BinUser),
                   {ok,ScopeConsents} = idp_mng:get_consents(BinClientId),
                   RPScopes = lists:flatten([get_scopes_from_consent(BinClientId,Consent) || Consent <- ScopeConsents]),
                   case is_in_list(BinScopes,RPScopes) of 
@@ -34,11 +34,11 @@ method(<<"POST">>,Req0,Opts)->
                                   {ok,Code} = idp_mng:authorize(BinClientId,RedirectUri),
                                   BinCode = erlang:list_to_binary(Code),
                                   Response = <<RedirectUri/binary,<<"?code=">>/binary,BinCode/binary,<<"&state=">>/binary,State/binary>>,
-                                  _SetCode = idp_user:set_code(binary_to_atom(Username,utf8),Code),
+                                  _SetCode = idp_usermng:set_code(binary_to_atom(Username,utf8),Code),
                                   cowboy_req:reply(302, #{<<"Location">> => Response}, <<>>, Req);
                               _ ->
                                   MissingScopes = is_in_list(BinScopes,UserScopes),
-                                  [idp_user:add_scope(BinUser,S) || S <- MissingScopes],
+                                  [idp_usermng:add_scope(BinUser,S) || S <- MissingScopes],
                                   logger:debug("Added User scopes: ~p~n",[MissingScopes])
                           end;
                           R -> io:format("Scopes not allowed for RP/Clilent: ~p~n",[R])

@@ -34,10 +34,12 @@ init([]) ->
     TypeW = worker,
     TypeS = supervisor,
 
+    UserMng = {'idp_usermng', {'idp_usermng', start_link, []}, Restart, Shutdown, TypeW, ['idp_usermng']},
     IDPMng = {'idp_mng', {'idp_mng', start_link, []}, Restart, Shutdown, TypeW, ['idp_mng']},
-    Users = {'idp_usersup', {'idp_usersup', start_link, []}, Restart, Shutdown, TypeS, ['idp_usersup']},
-    RP = {'idp_rpsup', {'idp_rpsup', start_link, []}, Restart, Shutdown, TypeS, ['idp_rpsup']},
-    {ok, { {one_for_all, 0, 1}, [IDPMng,RP,Users]} }.
+    %Users = {'idp_usersup', {'idp_usersup', start_link, []}, Restart, Shutdown, TypeS, ['idp_usersup']},
+    RP    = {'idp_rpsup',   {'idp_rpsup', start_link, []}, Restart, Shutdown, TypeS, ['idp_rpsup']},
+    %RPUser    = {'idp_usersup',   {'idp_usersup', start_link, []}, Restart, Shutdown, TypeS, ['idp_usersup']},
+    {ok, { {one_for_all, 0, 1}, [IDPMng,RP,UserMng]} }.
 
 %%====================================================================
 %% Internal functions

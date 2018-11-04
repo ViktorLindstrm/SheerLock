@@ -237,8 +237,8 @@ set_rp_pass(RPId,Pass) -> gen_server:call(?MODULE,{set_rp_pass,{RPId,Pass}}).
 validate_code(ClientId,Code,RedirectUri) -> gen_server:call(?MODULE,{validate_code,{ClientId,Code,RedirectUri}}).
 authorize(ClientId,RedirectUri) -> gen_server:call(?MODULE,{authorize,{ClientId,RedirectUri}}).
 
-get_userinfo(Token) -> idp_user:get_userviatoken(Token).
+get_userinfo(Token) -> idp_usermng:get_userviatoken(Token).
 
-reg_user(Username,Password) -> idp_user:reg_user(Username,Password). 
-validate_user(Username,Password) -> idp_user:verify(Username,Password).
+reg_user(Username,Password) -> idp_usermng:reg_user(Username,Password). 
+validate_user(Username,Password) -> idp_usermng:verify(Username,Password).
 

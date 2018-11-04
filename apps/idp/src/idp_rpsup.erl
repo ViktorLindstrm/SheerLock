@@ -27,7 +27,7 @@ start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 start_child(Id) ->
-  supervisor:start_child(?SERVER, [Id]).
+    supervisor:start_child(?SERVER, [Id]).
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
@@ -56,8 +56,7 @@ init([]) ->
     Shutdown = brutal_kill,
     Type = worker,
 
-    AChild = {'idp_rp', {'idp_rp', start_link, []},
-              Restart, Shutdown, Type, ['idp_rp']},
+    AChild = {'idp_rp', {'idp_rp', start_link, []}, Restart, Shutdown, Type, ['idp_rp']},
 
     {ok, {SupFlags, [AChild]}}.
 
