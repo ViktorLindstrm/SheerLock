@@ -51,7 +51,7 @@
 -include_lib("stdlib/include/ms_transform.hrl").
 -define(SERVER, ?MODULE).
 
-start_link(UserData) ->
+start_link(UserData) when is_record(UserData,user) ->
     gen_server:start_link(?MODULE, [UserData], []).
 
 init([UserData]) ->

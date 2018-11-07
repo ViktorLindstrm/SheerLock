@@ -92,10 +92,13 @@ handle_call({register,{Username,Password}}, _From, #state{users = Users} = State
 
 handle_call({get_scopes,UserID}, _From, #state{users = Users} = State) ->
     Reply = case get_user(UserID,Users) of 
-                {ok,#user{scopes = Scopes}} -> 
-                    {ok, Scopes};
+                {ok,PID} -> 
+                    {ok, _Scopes} = gen_server:call(PID,{get_scopes});
                 {error,_} -> 
-                    {error, no_such_user}
+                    {error, no_such_user};
+                E -> 
+                    io:format("Error!: ~p ~n",[E]),
+                    {error, E}
             end,
     {reply, Reply, State};
 
@@ -136,8 +139,12 @@ add_scope(UserId,Scope) -> gen_server:call(?MODULE,{add_scope,{UserId,Scope}}).
 
 get_user(UserID,Users) ->
     Reply = case ets:select(Users, ets:fun2ms(fun(N = {_,#user{username=ID}}) when ID == UserID -> N end)) of
+                 [{_,#user{id = MaybePID}}] when is_pid(MaybePID)->
+                     {ok,MaybePID};
                  [{_,U}] ->
-                     {ok,U};
+                    {ok,PID} = idp_usersup:start_child(U),
+                    ets:insert(Users,{U#user.username,U#user{id=PID}}),
+                    {ok,PID};
                  [] ->
                      {error, no_such_user}
              end,
