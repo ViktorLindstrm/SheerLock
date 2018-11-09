@@ -81,6 +81,11 @@ handle_call({get_userid}, _From, State) ->
     Reply = {ok,State#state.username},
     {reply, Reply, State};
 
+handle_call({expire_token,Token}, _From,  State) when is_record(Token,token) ->
+    Reply = ok,
+    NewState = State#state{token={undefined,Token#token{access_token = undefined}}},
+    {reply, Reply, NewState};
+
 handle_call({set_token,Token}, _From,  State) when is_record(Token,token) ->
     Reply = ok,
     NewState = State#state{token={Token#token.access_token,Token}},

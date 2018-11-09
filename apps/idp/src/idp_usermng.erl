@@ -71,6 +71,8 @@ handle_call({get_userviatoken,Token}, _From, #state{users = Users} = State) ->
     {reply, Reply, State};
 
 handle_call({expire_token,Token}, _From, #state{users = Users} = State) ->
+    {ok,UserPid} = get_userviatoken(Token,Users),
+    gen_server:call(UserPid,{expire_token,Token}),
     Reply = expire_token(Token,Users),
     {reply, Reply, State};
 
@@ -184,6 +186,7 @@ expire_token(Token,Users) ->
         [] ->
             {error,no_such_user}
     end.
+    
 get_userviatoken(Token,Users) ->
     logger:debug("get_userviatoken: ~p",[Token]),
     case ets:select(Users, ets:fun2ms(fun(N = {_,#user{token={AT,_}}}) when AT == Token -> N end)) of 
