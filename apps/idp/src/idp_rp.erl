@@ -3,17 +3,8 @@
 -export([
          start_link/1,
          authorize/1,
-         %get_scopes/0,
-         %get_unconfirmed_scopes/0,
-         %get_consents/0,
-         %add_scope/1,
-         %remove_scope/1,
-         %add_consent/1,
-         %confirm_scope/1,
-         %unconfirm_scope/1,
          add_scope_to_consent/2,
          remove_scope_to_consent/2,
-         %remove_consent/1,
          validate_code/2,
          clean_token/3
         ]).
@@ -29,6 +20,8 @@
 -record(state, {id = undefined,codes=[],password=undefined,consents=undefined}).
 -record(token, {access_token,token_type,expires_in,expired=true,refresh_token,scopes,created_time}).
 -define(SERVER, ?MODULE).
+-define(CODE_SIZE, 32).
+-define(TOKEN_SIZE, 256).
 
 start_link(Id) ->
     gen_server:start_link(?MODULE, [Id], []).
@@ -168,25 +161,26 @@ handle_call({remove_scope_to_consent,{Consent,Scope}}, _From,  #state{consents =
     {reply, Reply, State};
 
 
-handle_call({authorize,RedirectUri}, _From, #state{codes = Codes} = State) ->
-    Code = create_code(32),
+handle_call({authorize,RedirectUri,UserID}, _From, #state{codes = Codes} = State) ->
+    Code = create_code(?CODE_SIZE),
     Reply = {ok, Code},
-    NewState = State#state{codes=[{Code,RedirectUri}|Codes]},
+    NewState = State#state{codes=[{Code,{RedirectUri,UserID}}|Codes]},
     {reply, Reply, NewState};
 
 handle_call({validate_code,{Code,RedirectUri}}, _From, #state{codes = Codes} = State) ->
+    logger:debug("Validate_code: ~p",[Code]),
     {Reply,NewState} = case lists:keyfind(Code,1,Codes) of
-                           {Code,FRedirectUri} ->
-                               io:format("RedirectUri: ~p~nFRedirectUri: ~p~nCode: ~p~n",[RedirectUri,FRedirectUri,Code]),
+                           {Code,{FRedirectUri,User}} ->
+                               logger:debug("RedirectUri: ~p~nFRedirectUri: ~p~nCode: ~p~n",[RedirectUri,FRedirectUri,Code]),
                                case (FRedirectUri == RedirectUri) or (FRedirectUri == undefined)  of
                                    true ->
                                        NewCodes = lists:keydelete(Code,1,Codes),
-                                       AccessToken = create_code(256),
-                                       RefreshToken = create_code(256),
+                                       AccessToken = create_code(?TOKEN_SIZE),
+                                       RefreshToken = create_code(?TOKEN_SIZE),
                                        TokenType = "Bearer",
                                        ExpiresIn= "3600",
                                        Token = #token{access_token=AccessToken,token_type=TokenType,expires_in=ExpiresIn,expired=false,refresh_token=RefreshToken,created_time=erlang:timestamp()},
-                                       idp_usermng:set_token(Code,Token),
+                                       idp_usermng:set_token(User,Token),
                                        erlang:spawn(?MODULE,clean_token,[erlang:self(),AccessToken,list_to_integer(ExpiresIn)]),
                                        RetToken = #{<<"access_token">> => list_to_binary(AccessToken), 
                                                     <<"token_type">> => list_to_binary(TokenType),
@@ -230,26 +224,11 @@ create_code(Size) ->
      end || X<- base64:encode_to_string(BinToken)].
 
 %% Internal functions
-%validate_rp(Password) -> gen_server:call(?MODULE,{validate_rp,Password}).
+%%
 validate_code(ClientId,Code) -> gen_server:call(?MODULE,{validate_code,{ClientId,Code}}).
 authorize(ClientId) -> gen_server:call(?MODULE,{authorize,ClientId}).
-
-%get_scopes() -> gen_server:call(?MODULE,{get_scopes}).
-get_unconfirmed_scopes() -> gen_server:call(?MODULE,{get_unconfirmed_scopes}).
-%get_consents() -> gen_server:call(?MODULE,{get_consents}).
-
-%add_scope(Scope) -> gen_server:call(?MODULE,{add_scope,Scope}).
-%remove_scope(Scope) -> gen_server:call(?MODULE,{remove_scope,Scope}).
-%confirm_scope(Scope) -> gen_server:call(?MODULE,{confirm_scope,Scope}).
-%unconfirm_scope(Scope) -> gen_server:call(?MODULE,{unconfirm_scope,Scope}).
- 
-%add_consent(Consent) -> gen_server:call(?MODULE,{add_consent,Consent}).
-%remove_consent(Consent) -> gen_server:call(?MODULE,{remove_consent,Consent}).
-
 add_scope_to_consent(Scope,Consent) -> gen_server:call(?MODULE,{add_scope_to_consent,{Scope,Consent}}).
 remove_scope_to_consent(Scope,Consent) -> gen_server:call(?MODULE,{remove_scope_to_consent,{Scope,Consent}}).
-
-
 
 ets_keys(_Table,'$end_of_table',Acc) -> Acc;
 ets_keys(Table,First,Acc) -> ets_keys(Table,ets:next(Table,First),[First|Acc]).

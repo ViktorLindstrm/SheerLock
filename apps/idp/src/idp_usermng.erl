@@ -50,8 +50,8 @@ init([]) ->
 
 handle_call({verify,{Username,Password}}, _From, #state{users = Users} = State) ->
     Reply = case get_user(Username,Users) of 
-                {ok,Userdata} -> 
-                    {ok, Userdata#user.password == hash_pw(Password)};
+                {ok,PID} -> 
+                    gen_server:call(PID,{verify,Password});
                 {error,_} -> 
                     {error, no_such_user}
             end,
@@ -59,8 +59,8 @@ handle_call({verify,{Username,Password}}, _From, #state{users = Users} = State) 
 
 handle_call({set_code,{UserID,Code}}, _From, #state{users = Users} = State) ->
     Reply = case get_user(UserID,Users) of 
-                {ok,Userdata} -> 
-                    set_code(Userdata,Code,Users);
+                {ok,PID} -> 
+                    gen_server:call(PID,{set_code,Code});
                 {error,_} -> 
                     {error, no_such_user}
             end,
@@ -69,12 +69,18 @@ handle_call({set_code,{UserID,Code}}, _From, #state{users = Users} = State) ->
 handle_call({get_userviatoken,Token}, _From, #state{users = Users} = State) ->
     Reply = get_userviatoken(Token,Users),
     {reply, Reply, State};
+
 handle_call({expire_token,Token}, _From, #state{users = Users} = State) ->
     Reply = expire_token(Token,Users),
     {reply, Reply, State};
 
-handle_call({set_token,{Code,Token}}, _From, #state{users = Users} = State) ->
-    Reply = set_token(Code,Token,Users),
+handle_call({set_token,{UserID,Token}}, _From, #state{users = Users} = State) ->
+    logger:debug("set_token: ~nUser: ~p~nToken: ~p",[UserID,Token]),
+    {ok,PID} = get_user(UserID,Users),
+    set_token(UserID,Token,Users),
+    %ets:insert(Users,{U#user.username,U#user{token=Token}}),
+
+    Reply = gen_server:call(PID,{set_token,Token}),
     {reply, Reply, State};
 
 handle_call({register,{Username,Password}}, _From, #state{users = Users} = State) ->
@@ -104,8 +110,9 @@ handle_call({get_scopes,UserID}, _From, #state{users = Users} = State) ->
 
 handle_call({add_scope,{UserID,Scope}}, _From, #state{users = Users} = State) ->
     Reply = case get_user(UserID,Users) of 
-                {ok,Userdata} -> 
-                    add_scope(Userdata,Scope,Users);
+                {ok,PID} -> 
+                    gen_server:call(PID,{add_scope,Scope});
+                    %add_scope(Userdata,Scope,Users);
                 {error,_} -> 
                     {error, no_such_user}
             end,
@@ -156,8 +163,15 @@ set_user(User,Users) ->
 add_scope(User,Scope,Users) ->
     ets:insert(Users,{User#user.username,User#user{scopes=[Scope|User#user.scopes]}}).
 
-set_code(User,Code,Users) ->
-    ets:insert(Users,{User#user.username,User#user{code=Code}}).
+set_token(UserID,Token,Users) ->
+    Reply = case ets:select(Users, ets:fun2ms(fun(N = {_,#user{username=ID}}) when ID == UserID -> N end)) of
+                 [{_,U}] ->
+                    ets:insert(Users,{U#user.username,U#user{token={Token#token.access_token,Token}}}),
+                    ok;
+                 [] ->
+                     {error, no_such_user}
+             end,
+     Reply.
 
 expire_token(Token,Users) ->
     case ets:select(Users, ets:fun2ms(fun(N = {_,#user{token={AT,_}}}) when AT == Token -> N end)) of 
@@ -171,19 +185,26 @@ expire_token(Token,Users) ->
             {error,no_such_user}
     end.
 get_userviatoken(Token,Users) ->
+    logger:debug("get_userviatoken: ~p",[Token]),
     case ets:select(Users, ets:fun2ms(fun(N = {_,#user{token={AT,_}}}) when AT == Token -> N end)) of 
-        [{_,User}] ->
-            {ok,User};
+        [{_,#user{id = MaybePID}}] when is_pid(MaybePID)->
+            {ok,MaybePID};
+        [{_,U}] ->
+            {ok,PID} = idp_usersup:start_child(U),
+            ets:insert(Users,{U#user.username,U#user{id=PID}}),
+            {ok,PID};
         [] ->
-            {error,no_such_user}
+            {error, no_such_user}
     end.
 
-set_token(Code,Token,Users) ->
+get_userviacode(Code,Users) ->
     case ets:select(Users, ets:fun2ms(fun(N = {_,#user{code=UCode}}) when UCode == Code -> N end)) of 
+        [{_,#user{id = MaybePID}} ] when is_pid(MaybePID)->
+            {ok,MaybePID};
         [{_,User}] ->
-            ets:insert(Users,{User#user.username,User#user{code=undefined,token={Token#token.access_token,Token}}}),
-            ok;
+            {ok,_PID} = idp_usersup:start_child(User);
         [] ->
+            logger:debug("SetToken nouser :(,Code: ~p",[Code]),
             {error,no_such_user}
     end.
 

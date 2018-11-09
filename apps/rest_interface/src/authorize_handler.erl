@@ -31,10 +31,10 @@ method(<<"POST">>,Req0,Opts)->
                           case is_in_list(BinScopes,UserScopes) of
                               [] ->  
                                   logger:debug("Scopes: ~p, UserConsent: ~p, RP scopes: ~p~n",[Scopes,UserScopes,RPScopes]),
-                                  {ok,Code} = idp_mng:authorize(BinClientId,RedirectUri),
+                                  {ok,Code} = idp_mng:authorize(BinClientId,RedirectUri,BinUser),
                                   BinCode = erlang:list_to_binary(Code),
                                   Response = <<RedirectUri/binary,<<"?code=">>/binary,BinCode/binary,<<"&state=">>/binary,State/binary>>,
-                                  _SetCode = idp_usermng:set_code(binary_to_atom(Username,utf8),Code),
+                                  %_SetCode = idp_usermng:set_code(binary_to_atom(Username,utf8),Code),
                                   cowboy_req:reply(302, #{<<"Location">> => Response}, <<>>, Req);
                               _ ->
                                   MissingScopes = is_in_list(BinScopes,UserScopes),
@@ -95,7 +95,8 @@ authorize(<<"GET">>, {<<"code">>,ClientId,RedirectUri,Scope,State}, Req) ->
 authorize(<<"GET">>, {_,_,_,_,_}, Req) ->
     cowboy_req:reply(400, #{}, <<"Missing echo parameter, is? 4">>, Req);
 
-authorize(_, _, Req) ->
+authorize(Method, Message, Req) ->
+    io:format("Error! Method not allowed: ~p, Message: ~p, Req: ~p~n",[Method, Message, Req]),
     %% Method not allowed.
     cowboy_req:reply(405, Req).
 

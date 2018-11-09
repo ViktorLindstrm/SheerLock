@@ -5,7 +5,6 @@
          reg_user/2,
          verify/2,
          set_code/2,
-         set_token/2,
          expire_token/1,
          get_userviatoken/1,
          get_scopes/1,
@@ -68,9 +67,29 @@ handle_call({verify,InpPassword}, _From, #state{password = Password} = State) ->
     Reply = {ok, Password == hash_pw(InpPassword)},
     {reply, Reply, State};
 
+handle_call({get_user}, _From, State) ->
+    Id = self(),
+    Username = State#state.username,
+    Name = State#state.name,
+    Password = State#state.password,
+    Scopes = State#state.scopes,
+    Token = State#state.token,
+    Code = State#state.code,
+    Reply = {ok,#user{id = Id,username = Username,name = Name, password = Password, scopes = Scopes,token = Token, code = Code}},
+    {reply, Reply, State};
+
+handle_call({get_userid}, _From, State) ->
+    Reply = {ok,State#state.username},
+    {reply, Reply, State};
+
 handle_call({set_code,Code}, _From, State) ->
     Reply = ok,
     NewState = State#state{code=Code},
+    {reply, Reply, NewState};
+
+handle_call({set_token,Token}, _From,  State) when is_record(Token,token) ->
+    Reply = ok,
+    NewState = State#state{token={Token#token.access_token,Token}},
     {reply, Reply, NewState};
 
 handle_call({get_scopes}, _From,  #state{scopes=Scopes} = State) ->
@@ -102,7 +121,7 @@ code_change(_OldVsn, State, _Extra) ->
 reg_user(Username,Password) -> gen_server:call(?MODULE,{register,{Username,Password}}).
 verify(Username,Password) -> gen_server:call(?MODULE,{verify,{Username,Password}}).
 set_code(User,Code) -> gen_server:call(?MODULE,{set_code,{User,Code}}).
-set_token(Code,Token) -> gen_server:call(?MODULE,{set_token,{Code,Token}}).
+%set_token(Code,Token) -> gen_server:call(?MODULE,{set_token,{Code,Token}}).
 expire_token(Token) -> gen_server:call(?MODULE,{expire_token,Token}).
 get_userviatoken(Token) -> gen_server:call(?MODULE,{get_userviatoken,Token}).
 get_scopes(UserId) -> gen_server:call(?MODULE,{get_scopes,UserId}).

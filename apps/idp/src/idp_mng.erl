@@ -18,7 +18,7 @@
 
          get_rp/1,
          set_rp_pass/2,
-         authorize/2,
+         authorize/3,
          validate_code/3,
          unregister_rp/1,
          reg_user/2,
@@ -109,10 +109,10 @@ handle_call({validate_code,{RPId,Code,RedirectUri}}, _From, #state{rps = RPS} = 
             end,
     {reply, Reply, State};
 
-handle_call({authorize,{RPId,RedirectUri}}, _From, #state{rps = RPS} = State) ->
+handle_call({authorize,{RPId,RedirectUri,UserId}}, _From, #state{rps = RPS} = State) ->
     Reply = case lists:keyfind(RPId,1,RPS) of
                 {RPId,RPPid} ->
-                    {ok,_Code} = gen_server:call(RPPid,{authorize,RedirectUri});
+                    {ok,_Code} = gen_server:call(RPPid,{authorize,RedirectUri,UserId});
                 false ->
                     {error, no_such_rp}
             end,
@@ -235,7 +235,7 @@ remove_scope_to_consent(RPId,Scope,Consent) ->gen_server:call(?MODULE,{remove_sc
 set_rp_pass(RPId,Pass) -> gen_server:call(?MODULE,{set_rp_pass,{RPId,Pass}}).
 
 validate_code(ClientId,Code,RedirectUri) -> gen_server:call(?MODULE,{validate_code,{ClientId,Code,RedirectUri}}).
-authorize(ClientId,RedirectUri) -> gen_server:call(?MODULE,{authorize,{ClientId,RedirectUri}}).
+authorize(ClientId,RedirectUri,UserId) -> gen_server:call(?MODULE,{authorize,{ClientId,RedirectUri,UserId}}).
 
 get_userinfo(Token) -> idp_usermng:get_userviatoken(Token).
 
