@@ -29,6 +29,7 @@
               }).
 
 -record(user, {id,
+               session          :: list(),
                username         :: atom(),
                name             :: list(),
                password         :: list(),
@@ -48,6 +49,7 @@
 
 -include_lib("stdlib/include/ms_transform.hrl").
 -define(SERVER, ?MODULE).
+-define(SESSION_SIZE, 256).
 
 start_link(UserData) when is_record(UserData,user) ->
     gen_server:start_link(?MODULE, [UserData], []).
@@ -86,6 +88,17 @@ handle_call({expire_token,Token}, _From,  State) when is_record(Token,token) ->
     NewState = State#state{token={undefined,Token#token{access_token = undefined}}},
     {reply, Reply, NewState};
 
+handle_call({set_session}, _From,  State) ->
+    Code = create_code(?SESSION_SIZE),
+    Reply = {ok,Code},
+    NewState = State#state{session=Code},
+    {reply, Reply, NewState};
+
+handle_call({expire_session}, _From,  State)  ->
+    Reply = ok,
+    NewState = State#state{session=undefined},
+    {reply, Reply, NewState};
+
 handle_call({set_token,Token}, _From,  State) when is_record(Token,token) ->
     Reply = ok,
     NewState = State#state{token={Token#token.access_token,Token}},
@@ -101,7 +114,8 @@ handle_call({add_scope,Scope}, _From, #state{scopes=Scopes} = State) ->
     {reply, Reply, NewState};
 
 
-handle_call(_Request, _From, State) ->
+handle_call(Request, _From, State) ->
+    logger:debug("Request ignored: ~p",[Request]),
     {reply, ignored, State}.
 
 handle_cast(_Msg, State) ->
@@ -124,5 +138,12 @@ get_userviatoken(Token) -> gen_server:call(?MODULE,{get_userviatoken,Token}).
 get_scopes(UserId) -> gen_server:call(?MODULE,{get_scopes,UserId}).
 add_scope(UserId,Scope) -> gen_server:call(?MODULE,{add_scope,{UserId,Scope}}).
 
+create_code(Size) ->
+    BinToken = crypto:strong_rand_bytes(Size),
+    [case X of
+         43 -> 45;
+         47 -> 95;
+         L -> L
+     end || X<- base64:encode_to_string(BinToken)].
 hash_pw(Password) -> 
     crypto:hash(sha256,Password).

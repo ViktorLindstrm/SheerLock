@@ -5,9 +5,12 @@
          reg_user/2,
          verify/2,
          set_code/2,
+         set_session/2,
+         expire_session/3,
          set_token/2,
          expire_token/1,
          get_userviatoken/1,
+         get_userviasession/1,
          get_scopes/1,
          add_scope/2
         ]).
@@ -22,6 +25,7 @@
 
 -record(state, {id = undefined,users=undefined}).
 -record(user, {id,
+               session          :: list(),
                username         :: atom(),
                name             :: list(),
                password         :: list(),
@@ -66,8 +70,40 @@ handle_call({set_code,{UserID,Code}}, _From, #state{users = Users} = State) ->
             end,
     {reply, Reply, State};
 
+handle_call({get_userviasession,SID}, _From, #state{users = Users} = State) ->
+    logger:debug("get_userviasession, SID: ~p",[SID]),
+    Reply = case ets:select(Users, ets:fun2ms(fun(N = {_,#user{session=Session}}) when Session == SID -> N end)) of 
+              [{_,#user{id = MaybePID}}] when is_pid(MaybePID)->
+                  {ok,MaybePID};
+              [{_,U}] ->
+                  {ok,PID} = idp_usersup:start_child(U),
+                  ets:insert(Users,{U#user.username,U#user{id=PID}}),
+                  {ok,PID};
+              [] ->
+                  {error, no_such_user}
+          end,
+    {reply, Reply, State};
+
 handle_call({get_userviatoken,Token}, _From, #state{users = Users} = State) ->
     Reply = get_userviatoken(Token,Users),
+    {reply, Reply, State};
+
+handle_call({set_session,{UserId,SessionTime}}, _From, #state{users = Users} = State) ->
+    {ok,UserPID} = get_user(UserId,Users),
+    {ok,SessionId} = gen_server:call(UserPID,{set_session}),
+    logger:debug("SessionID : ~p",[SessionId]),
+    logger:debug("Setting session for user ~p~nSessionID ~p",[UserId,SessionId]),
+    Ret = case ets:select(Users, ets:fun2ms(fun(N = {_,#user{username=ID}}) when ID == UserId -> N end)) of
+        [{_,U}] ->
+            ets:insert(Users,{U#user.username,U#user{session=SessionId}}),
+            ok;
+        [] ->
+            {error, no_such_user}
+    end,
+    logger:debug("Set session ret: ~p",[Ret]),
+    Reply = {ok,SessionId},
+    %erlang:spawn(?MODULE,expire_session,[UserPID,SessionTime,Users]),
+    %Reply = gen_server:call(UserPID,{set_session}),
     {reply, Reply, State};
 
 handle_call({expire_token,Token}, _From, #state{users = Users} = State) ->
@@ -81,7 +117,6 @@ handle_call({set_token,{UserID,Token}}, _From, #state{users = Users} = State) ->
     {ok,PID} = get_user(UserID,Users),
     set_token(UserID,Token,Users),
     %ets:insert(Users,{U#user.username,U#user{token=Token}}),
-
     Reply = gen_server:call(PID,{set_token,Token}),
     {reply, Reply, State};
 
@@ -121,7 +156,8 @@ handle_call({add_scope,{UserID,Scope}}, _From, #state{users = Users} = State) ->
     {reply, Reply, State};
 
 
-handle_call(_Request, _From, State) ->
+handle_call(Request, _From, State) ->
+    logger:debug("Ignored : ~p",[Request]),
     {reply, ignored, State}.
 
 handle_cast(_Msg, State) ->
@@ -143,8 +179,10 @@ set_code(User,Code) -> gen_server:call(?MODULE,{set_code,{User,Code}}).
 set_token(Code,Token) -> gen_server:call(?MODULE,{set_token,{Code,Token}}).
 expire_token(Token) -> gen_server:call(?MODULE,{expire_token,Token}).
 get_userviatoken(Token) -> gen_server:call(?MODULE,{get_userviatoken,Token}).
+get_userviasession(Session) -> gen_server:call(?MODULE,{get_userviasession,Session}).
 get_scopes(UserId) -> gen_server:call(?MODULE,{get_scopes,UserId}).
 add_scope(UserId,Scope) -> gen_server:call(?MODULE,{add_scope,{UserId,Scope}}).
+set_session(UserId,SessionTime) -> gen_server:call(?MODULE,{set_session,{UserId,SessionTime}}).
 
 get_user(UserID,Users) ->
     Reply = case ets:select(Users, ets:fun2ms(fun(N = {_,#user{username=ID}}) when ID == UserID -> N end)) of
@@ -200,16 +238,22 @@ get_userviatoken(Token,Users) ->
             {error, no_such_user}
     end.
 
-get_userviacode(Code,Users) ->
-    case ets:select(Users, ets:fun2ms(fun(N = {_,#user{code=UCode}}) when UCode == Code -> N end)) of 
-        [{_,#user{id = MaybePID}} ] when is_pid(MaybePID)->
-            {ok,MaybePID};
+
+expire_session(UserPID,SessionTime,Users) ->
+    timer:sleep(SessionTime),
+    Ret = case ets:select(Users, ets:fun2ms(fun(N = {_,#user{id=Pid}}) when Pid == UserPID -> N end)) of 
         [{_,User}] ->
-            {ok,_PID} = idp_usersup:start_child(User);
+            logger:debug("Expire session User: ~p~nin talbe: ~p",[User,Users]),
+            ets:insert(Users,{User#user.username,User#user{session=undefined}}),
+            {ok,User#user.username};
         [] ->
-            logger:debug("SetToken nouser :(,Code: ~p",[Code]),
             {error,no_such_user}
-    end.
+    end,
+    gen_server:call(UserPID,{expire_session}),
+    Ret.
+
 
 hash_pw(Password) -> 
     crypto:hash(sha256,Password).
+
+

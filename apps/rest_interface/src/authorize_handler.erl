@@ -4,8 +4,21 @@
 -module(authorize_handler).
 
 -export([init/2]).
+%5 min session time
+-define(SESSION_TIME, 5*60).
+
+-record(user, {id,
+               session          :: list(),
+               username         :: atom(),
+               name             :: list(),
+               password         :: list(),
+               scopes = []      :: list(),
+               token = undefined,
+               code = undefined :: 'undefined' | list()
+              }).
 
 init(Req0, Opts) ->
+
     Method = cowboy_req:method(Req0),
     method(Method,Req0,Opts).
 
@@ -21,35 +34,41 @@ method(<<"POST">>,Req0,Opts)->
     State = proplists:get_value(<<"state">>, PostVals),
     BinUser = binary_to_atom(Username,utf8),
     BinPassword = binary_to_list(Password),
+
     Req1 = case idp_mng:validate_user(BinUser,BinPassword) of
-              {ok,true} ->
-                  {ok,UserScopes} = idp_usermng:get_scopes(BinUser),
-                  {ok,ScopeConsents} = idp_mng:get_consents(BinClientId),
-                  RPScopes = lists:flatten([get_scopes_from_consent(BinClientId,Consent) || Consent <- ScopeConsents]),
-                  case is_in_list(BinScopes,RPScopes) of 
-                      [] -> 
-                          case is_in_list(BinScopes,UserScopes) of
-                              [] ->  
-                                  logger:debug("Scopes: ~p, UserConsent: ~p, RP scopes: ~p~n",[Scopes,UserScopes,RPScopes]),
-                                  {ok,Code} = idp_mng:authorize(BinClientId,RedirectUri,BinUser),
-                                  BinCode = erlang:list_to_binary(Code),
-                                  Response = <<RedirectUri/binary,<<"?code=">>/binary,BinCode/binary,<<"&state=">>/binary,State/binary>>,
-                                  %_SetCode = idp_usermng:set_code(binary_to_atom(Username,utf8),Code),
-                                  cowboy_req:reply(302, #{<<"Location">> => Response}, <<>>, Req);
-                              _ ->
-                                  MissingScopes = is_in_list(BinScopes,UserScopes),
-                                  [idp_usermng:add_scope(BinUser,S) || S <- MissingScopes],
-                                  logger:debug("Added User scopes: ~p~n",[MissingScopes])
-                          end;
-                          R -> io:format("Scopes not allowed for RP/Clilent: ~p~n",[R])
-                  end;
-              {ok,false} ->
-                  io:format("Bad password"),
-                  cowboy_req:reply(405, #{}, <<>>, Req0);
-              {error,no_such_user} ->
-                  io:format("No such user"),
-                  cowboy_req:reply(405, #{}, <<>>, Req0)
-          end,
+               {ok,true} ->
+                   {ok,UserScopes} = idp_usermng:get_scopes(BinUser),
+                   {ok,ScopeConsents} = idp_mng:get_consents(BinClientId),
+                   RPScopes = lists:flatten([get_scopes_from_consent(BinClientId,Consent) || Consent <- ScopeConsents]),
+                   case is_in_list(BinScopes,RPScopes) of 
+                       [] -> 
+                           case is_in_list(BinScopes,UserScopes) of
+                               [] ->  
+                                   logger:debug("Scopes: ~p, UserConsent: ~p, RP scopes: ~p~n",[Scopes,UserScopes,RPScopes]),
+                                   {ok,Code} = idp_mng:authorize(BinClientId,RedirectUri,BinUser),
+                                   BinCode = erlang:list_to_binary(Code),
+                                   Response = <<RedirectUri/binary,<<"?code=">>/binary,BinCode/binary,<<"&state=">>/binary,State/binary>>,
+                                   {ok,SessionID} = idp_usermng:set_session(BinUser,?SESSION_TIME),
+                                   Req2 = cowboy_req:set_resp_cookie(<<"session">>, SessionID, Req, #{port => 8180,  http_only => true}),
+                                   _Req3 = cowboy_req:reply(302, #{<<"Location">> => Response}, <<>>, Req2);
+                               _ ->
+                                   logger:debug("adding missing scopes"),
+                                   MissingScopes = is_in_list(BinScopes,UserScopes),
+                                   [idp_usermng:add_scope(BinUser,S) || S <- MissingScopes],
+                                   logger:debug("Added User scopes: ~p~n",[MissingScopes])
+                           end;
+                       R -> 
+                           io:format("Scopes not allowed for RP/Clilent: ~p~n",[R])
+                   end;
+               {ok,false} ->
+                   io:format("Bad password"),
+                   cowboy_req:reply(405, #{}, <<>>, Req0);
+               {error,no_such_user} ->
+                   io:format("No such user"),
+                   cowboy_req:reply(405, #{}, <<>>, Req0);
+               Default ->
+                   io:format("Error! ~p~n",[Default])
+           end,
     {ok, Req1, Opts};
 
 
@@ -77,7 +96,40 @@ authorize(<<"GET">>, {undefined,undefined,undefined,undefined,undefined}, Req) -
 
 
 authorize(<<"GET">>, {<<"code">>,ClientId,RedirectUri,Scope,State}, Req) ->
-    Page = [<<"<html><body>
+    Cookies = cowboy_req:parse_cookies(Req),
+    case lists:keyfind(<<"session">>, 1,Cookies) of 
+        {_,SID} -> 
+            logger:debug("Found session: ~p",[SID]),
+            BinClientId = binary_to_atom(ClientId,utf8),
+            BinScopes = binary_to_atom(Scope,utf8),
+            {ok,UserPid} = idp_usermng:get_userviasession(binary_to_list(SID)),
+            logger:debug("Get userviasession: UserPID: ~p",[UserPid]),
+            {ok,UserData} = gen_server:call(UserPid,{get_user}),
+            BinUser = UserData#user.username,
+            UserScopes= UserData#user.scopes,
+            {ok,ScopeConsents} = idp_mng:get_consents(BinClientId),
+            RPScopes = lists:flatten([get_scopes_from_consent(BinClientId,Consent) || Consent <- ScopeConsents]),
+            case is_in_list(BinScopes,RPScopes) of 
+                [] -> 
+                    case is_in_list(BinScopes,UserScopes) of
+                        [] ->  
+                            logger:debug("Scopes: ~p, UserConsent: ~p, RP scopes: ~p~n",[Scope,UserScopes,RPScopes]),
+                            {ok,Code} = idp_mng:authorize(BinClientId,RedirectUri,BinUser),
+                            BinCode = erlang:list_to_binary(Code),
+                            Response = <<RedirectUri/binary,<<"?code=">>/binary,BinCode/binary,<<"&state=">>/binary,State/binary>>,
+                            {ok,SessionID} = idp_usermng:set_session(BinUser,?SESSION_TIME),
+                            Req2 = cowboy_req:set_resp_cookie(<<"session">>, SessionID, Req,#{http_only => true}),
+                            cowboy_req:reply(302, #{<<"Location">> => Response}, <<>>, Req2);
+                        _ ->
+                            MissingScopes = is_in_list(BinScopes,UserScopes),
+                            [idp_usermng:add_scope(BinUser,S) || S <- MissingScopes],
+                            logger:debug("Added User scopes: ~p~n",[MissingScopes])
+                    end;
+                R -> io:format("Scopes not allowed for RP/Clilent: ~p~n",[R])
+            end;
+
+        false -> 
+            Page = [<<"<html><body>
                   <form action=\"/authorize\" method=\"post\">
                       Username: <input type=\"text\" name=\"username\"><br>
                       Password: <input type=\"text\" name=\"password\"><br>
@@ -88,9 +140,10 @@ authorize(<<"GET">>, {<<"code">>,ClientId,RedirectUri,Scope,State}, Req) ->
                       <input type=\"submit\" value=\"Submit\">
                   </form>
                  </body></html>">>],
-    cowboy_req:reply(200, #{
-      <<"content-type">> => <<"text/html">>
-     }, Page, Req);
+            cowboy_req:reply(200, #{
+              <<"content-type">> => <<"text/html">>
+             }, Page, Req) 
+    end;
 
 authorize(<<"GET">>, {_,_,_,_,_}, Req) ->
     cowboy_req:reply(400, #{}, <<"Missing echo parameter, is? 4">>, Req);
@@ -108,6 +161,6 @@ is_in_list(Checks,Checkee) ->
     ResList = lists:flatten([X || X <- [Checks], not(lists:member(X,Checkee))]),
     logger:debug("Res: ~p, Checks: ~p, Checkee: ~p~n",[ResList,Checks,Checkee]),
     ResList.
-   %[X || X <- Checks, not(lists:member(X,Checkee))]
+%[X || X <- Checks, not(lists:member(X,Checkee))]
 
 
