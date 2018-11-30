@@ -3,6 +3,7 @@
 -export([
          start_link/0,
          reg_user/2,
+         unreg_user/2,
          verify/2,
          set_code/2,
          set_session/2,
@@ -120,6 +121,17 @@ handle_call({set_token,{UserID,Token}}, _From, #state{users = Users} = State) ->
     Reply = gen_server:call(PID,{set_token,Token}),
     {reply, Reply, State};
 
+handle_call({unregister,{Username,Password}}, _From, #state{users = Users} = State) ->
+    Reply = case get_user(list_to_atom(Username),Users) of 
+                           {error,no_such_user} -> 
+                                {error,no_such_user};
+                           {ok,PID} -> 
+                                AtomUser = list_to_atom(Username),
+                                logger:debug("Username: ~p",[AtomUser]),
+                                true = ets:delete(Users,AtomUser),
+                                gen_server:stop(PID)
+                       end,
+    {reply, Reply, State};
 handle_call({register,{Username,Password}}, _From, #state{users = Users} = State) ->
     Reply = case get_user(list_to_atom(Username),Users) of 
                            {error,no_such_user} -> 
@@ -174,6 +186,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Internal functions
 reg_user(Username,Password) -> gen_server:call(?MODULE,{register,{Username,Password}}).
+unreg_user(Username,Password) -> gen_server:call(?MODULE,{unregister,{Username,Password}}).
 verify(Username,Password) -> gen_server:call(?MODULE,{verify,{Username,Password}}).
 set_code(User,Code) -> gen_server:call(?MODULE,{set_code,{User,Code}}).
 set_token(Code,Token) -> gen_server:call(?MODULE,{set_token,{Code,Token}}).

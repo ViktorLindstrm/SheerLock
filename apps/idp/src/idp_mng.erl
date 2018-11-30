@@ -22,6 +22,7 @@
          validate_code/3,
          unregister_rp/1,
          reg_user/2,
+         unreg_user/2,
          validate_user/2,
          get_userinfo/1,
          validate_rp/2
@@ -240,5 +241,6 @@ authorize(ClientId,RedirectUri,UserId) -> gen_server:call(?MODULE,{authorize,{Cl
 get_userinfo(Token) -> idp_usermng:get_userviatoken(Token).
 
 reg_user(Username,Password) -> idp_usermng:reg_user(Username,Password). 
+unreg_user(Username,Password) -> idp_usermng:unreg_user(Username,Password). 
 validate_user(Username,Password) -> idp_usermng:verify(Username,Password).
 
