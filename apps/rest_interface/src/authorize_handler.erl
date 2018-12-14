@@ -23,6 +23,7 @@ init(Req0, Opts) ->
     method(Method,Req0,Opts).
 
 method(<<"POST">>,Req0,Opts)->
+    logger:debug("Auth POST"),
     {ok, PostVals, Req} = cowboy_req:read_urlencoded_body(Req0),
     Username = proplists:get_value(<<"username">>, PostVals),
     Password = proplists:get_value(<<"password">>, PostVals),
@@ -96,6 +97,7 @@ authorize(<<"GET">>, {undefined,undefined,undefined,undefined,undefined}, Req) -
 
 
 authorize(<<"GET">>, {<<"code">>,ClientId,RedirectUri,Scope,State}, Req) ->
+    logger:debug("Auth GET"),
     Cookies = cowboy_req:parse_cookies(Req),
     case lists:keyfind(<<"session">>, 1,Cookies) of 
         {_,SID} -> 
@@ -129,10 +131,16 @@ authorize(<<"GET">>, {<<"code">>,ClientId,RedirectUri,Scope,State}, Req) ->
             end;
 
         false -> 
-            Page = [<<"<html><body>
-                  <form action=\"/authorize\" method=\"post\">
-                      Username: <input type=\"text\" name=\"username\"><br>
-                      Password: <input type=\"text\" name=\"password\"><br>
+            Page = [<<"<html><head>
+            <link rel=\"stylesheet\" type=\"text/css\" href=\"priv/login.css\"></head>
+            <body>
+                <div id=\"header\">
+                <h1>Login</h1>
+                </div>
+                <div id=\"login\">   
+                    <form action=\"/authorize\" method=\"post\">
+                      <p>Username:</p> <input type=\"text\" name=\"username\"><br>
+                      <p>Password:</p> <input type=\"text\" name=\"password\"><br>
                       <input type=\"hidden\" name=\"redirecturi\" value=\"">>,RedirectUri,<<"\"><br>
                       <input type=\"hidden\" name=\"client_id\" value=\"">>,ClientId,<<"\"><br>
                       <input type=\"hidden\" name=\"state\" value=\"">>,State,<<"\"><br>

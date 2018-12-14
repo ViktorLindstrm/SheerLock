@@ -20,7 +20,8 @@ start(_Type, _Args) ->
 			{"/register", register_handler, []},
 			{"/introspect", introspect_handler, []},
 			{"/userinfo", userinfo_handler, []},
-			{"/revoke", revoke_handler, []}
+			{"/revoke", revoke_handler, []},
+            {"/[...]", cowboy_static, {priv_file, rest_interface, "login.css"}}
 		]}
 	]),
 	{ok, _} = cowboy:start_clear(http, [{port, 8180}], #{
