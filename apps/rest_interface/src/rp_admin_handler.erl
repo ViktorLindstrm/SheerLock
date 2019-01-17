@@ -28,7 +28,6 @@ method(<<"POST">>,Req0,Opts) ->
 method(<<"GET">>,Req0,Opts) ->
     RPName = binary_to_atom(cowboy_req:binding(rp,Req0),utf8),
     {ok,Consents} = idp_mng:get_consents(RPName),
-    %{ok,Scopes}   = idp_mng:get_scopes(RPName),
 
     CList = [["<li>"++atom_to_list(Consent)++"</li><ul>",["<li>"++atom_to_list(CScope)++"</li>"|| CScope <- get_scopes_from_consent(RPName,Consent)],"</ul>"] || Consent <- Consents],
     EList = ["<ul>",[X || X <- get_scopes_from_consent(RPName,unconfirmed)],"</ul>"],

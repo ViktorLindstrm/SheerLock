@@ -14,6 +14,7 @@ start(_Type, _Args) ->
 	Dispatch = cowboy_router:compile([
 		{'_', [
 			{"/admin", admin_handler, []},
+			{"/scopes", scopes_handler, []},
 			{"/admin/:rp", rp_admin_handler, []},
 			{"/authorize", authorize_handler, []},
 			{"/token", token_handler, []},

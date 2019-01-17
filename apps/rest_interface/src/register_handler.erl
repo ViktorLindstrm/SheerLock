@@ -10,7 +10,6 @@ init(Req0, Opts) ->
     method(Method,Req0,Opts).
 
 method(<<"POST">>, Req0, Opts)->
-    io:format("Hejsna"),
     {ok, PostVals, Req} = cowboy_req:read_urlencoded_body(Req0),
     Username = proplists:get_value(<<"username">>, PostVals),
     Password = proplists:get_value(<<"password">>, PostVals),
