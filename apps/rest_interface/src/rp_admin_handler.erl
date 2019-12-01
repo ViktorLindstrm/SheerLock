@@ -34,22 +34,38 @@ method(<<"POST">>,Req0,Opts) ->
     {ok, Req1, Opts};
 
 
-
 method(<<"GET">>,Req0,Opts) ->
     RPName = binary_to_atom(cowboy_req:binding(rp,Req0),utf8),
     {ok,Consents} = idp_mng:get_consents(RPName),
 
-    CList = [["<li>"++atom_to_list(Consent)++"</li><ul>",["<li>"++atom_to_list(CScope)++"</li>"|| CScope <- get_scopes_from_consent(RPName,Consent)],"</ul>"] || Consent <- Consents],
-    EList = ["<ul>",[X || X <- get_scopes_from_consent(RPName,unconfirmed)],"</ul>"],
-    List = ["<ul>",CList,"</ul>"],
-    Reg = "<form  method=\"post\">Add new scope<br>Name:<input type=\"text\" name=\"new_scope\"> <input type=\"submit\" value=\"Submit\"> </form>",
+    CList = [["<li class=\"list-group-item\">"++atom_to_list(Consent)++"</li><ul>",["<li class=\"list-group-item\">"++atom_to_list(CScope)++"</li>"|| CScope <- get_scopes_from_consent(RPName,Consent)],"</ul>"] || Consent <- Consents],
+    List = ["<h2>Scopes allowed</h2>","<ul class=\"list-group\">",CList,"</ul>"],
+    {ok,CodeSize} = idp_mng:get_rp_code_size(RPName),
+    PrintCodeSize = integer_to_list(CodeSize),
+    Reg = 
+    ["<form method=\"post\">
+      <div class=\"form-group row\">
+        <label for=\"addScope\" class=\"col-sm-2 col-form-label\">Add scope</label>
+        <div class=\"col-sm-10\">
+          <input type=\"text\" name=\"new_scope\" class=\"form-control\" id=\"addScope\" >  
+        </div>
+      </div>
+      </form>",
+      "<form method=\"post\">
+      <div class=\"form-group row\">
+        <label for=\"codeSize\" class=\"col-sm-2 col-form-label\">Code size</label>
+        <div class=\"col-sm-10\">
+          <input type=\"number\" name=\"new_code_size\" class=\"form-control\" value=\"",PrintCodeSize,"\" id=\"codeSize\" >  
+        </div>
+      </div>
+      </form>"],
 
-    CChange = "<form  method=\"post\">Set Code size:<input type=\"number\" name=\"new_code_size\"> <input type=\"submit\" value=\"Submit\"> </form>",
+    %CChange = "<form  method=\"post\">Set Code size:<input type=\"number\" name=\"new_code_size\"> <input type=\"submit\" value=\"Submit\"> </form>",
 
+    Content = layout:content([List,Reg]),
     Req = cowboy_req:reply(200, #{
       <<"content-type">> => <<"text/html">>
-     }, [<<"<html><body>">>, List,Reg,CChange,
-     <<"</body></html>">>], Req0),
+     }, [layout:header("RP Settings"),Content], Req0),
     {ok, Req, Opts}.
 
 
