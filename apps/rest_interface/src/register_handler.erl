@@ -13,31 +13,43 @@ method(<<"POST">>, Req0, Opts)->
     {ok, PostVals, Req} = cowboy_req:read_urlencoded_body(Req0),
     Username = proplists:get_value(<<"username">>, PostVals),
     Password = proplists:get_value(<<"password">>, PostVals),
+    ResponseType = proplists:get_value(<<"responsetype">>, PostVals),
+    RedirectUri = proplists:get_value(<<"redirecturi">>, PostVals),
+    ClientId = proplists:get_value(<<"client_id">>, PostVals),
+    Scopes = proplists:get_value(<<"scope">>, PostVals),
+    State = proplists:get_value(<<"state">>, PostVals),
 
+    logger:debug("u:p - ~p,~p~n~p",[Username,Password,PostVals]),
     Req1 = case idp_mng:reg_user(binary_to_list(Username),binary_to_list(Password)) of
               ok ->
                    io:format("hejsan"),
-                  cowboy_req:reply(302, #{<<"Location">> => <<"/authorize">>}, <<>>, Req);
+                  cowboy_req:reply(302, #{<<"Location">> => <<"/authorize?response_type=",ResponseType/binary,"&redirect_uri=",RedirectUri/binary,"&client_id=",ClientId/binary,"&scope=",Scopes/binary,"&state=",State/binary>>}, <<>>, Req);
               {error,no_such_user} ->
                   cowboy_req:reply(405, #{}, <<>>, Req0)
           end,
     {ok, Req1, Opts};
 
 
+
 method(<<"GET">>,Req0,Opts) ->
-    io:format("GETHEJ"),
-    Req = authorize(<<"GET">>, Req0),
+    #{response_type := ResponseType,
+      client_id := ClientId,
+      redirect_uri := RedirectUri,
+      scope := Scope,
+      state := State} = cowboy_req:match_qs([{response_type, [], undefined},
+                                             {client_id,     [], undefined},
+                                             {redirect_uri,  [], undefined},
+                                             {scope,         [], undefined},
+                                             {state,         [], undefined}
+                                            ], Req0),
+
+    logger:debug("reg - ~p",[ClientId]),
+    Req = authorize(<<"GET">>,ResponseType,ClientId,RedirectUri,Scope,State, Req0),
     {ok, Req, Opts}.
 
-%authorize(<<"GET">>, Req) ->
-    %cowboy_req:reply(200, #{
-      %<<"content-type">> => <<"text/html">>
-     %}, <<"<html><body>
-        %<a href=\"http://127.0.0.1:8180/authorize\?response_type\=code\&client_id\=test\&state\=xyz\&redirect_uri\=http://127.0.0.1:8180/\">send</a>
-     %</body></html>">>, Req);
 
 
-authorize(<<"GET">>, Req) ->
+authorize(<<"GET">>,undefined,undefined,undefined,undefined,undefined, Req) ->
     Page = [<<"<html><body>
               <h1>Register</h1>
                   <form action=\"/register\" method=\"post\">
@@ -50,9 +62,26 @@ authorize(<<"GET">>, Req) ->
       <<"content-type">> => <<"text/html">>
      }, Page, Req);
 
-%authorize(<<"GET">>, Req) ->
-    %cowboy_req:reply(400, #{}, <<"Missing echo parameter, is? 4">>, Req);
+authorize(<<"GET">>,ResponseType,ClientId,RedirectUri,Scope,State, Req) -> 
+    logger:debug("Posting data"),
+    Page = [<<"<html><body>
+              <h1>Register</h1>
+                  <form action=\"/register\" method=\"post\">
+                      Username: <input type=\"text\" name=\"username\"><br>
+                      Password: <input type=\"text\" name=\"password\"><br>
+                      <input type=\"hidden\" name=\"responsetype\" value=\"">>,ResponseType,<<"\"><br>
+                      <input type=\"hidden\" name=\"redirecturi\" value=\"">>,RedirectUri,<<"\"><br>
+                      <input type=\"hidden\" name=\"client_id\" value=\"">>,ClientId,<<"\"><br>
+                      <input type=\"hidden\" name=\"state\" value=\"">>,State,<<"\"><br>
+                      <input type=\"hidden\" name=\"scope\" value=\"">>,Scope,<<"\"><br>
+                      <input type=\"submit\" value=\"Submit\">
+                  </form>
+                 </body></html>">>],
+    cowboy_req:reply(200, #{
+      <<"content-type">> => <<"text/html">>
+     }, Page, Req);
 
-authorize(_, Req) ->
+
+authorize(_,_,_,_,_,_,Req) ->
     %% Method not allowed.
     cowboy_req:reply(405, Req).

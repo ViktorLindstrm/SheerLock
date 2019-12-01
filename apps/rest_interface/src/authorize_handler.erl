@@ -43,24 +43,20 @@ method(<<"POST">>,Req0,Opts)->
                    RPScopes = lists:flatten([get_scopes_from_consent(BinClientId,Consent) || Consent <- ScopeConsents]),
                    case is_in_list(BinScopes,RPScopes) of 
                        [] -> 
-                           case is_in_list(BinScopes,UserScopes) of
-                               [] ->  
                                    logger:debug("Scopes: ~p, UserConsent: ~p, RP scopes: ~p~n",[Scopes,UserScopes,RPScopes]),
                                    {ok,Code} = idp_mng:authorize(BinClientId,RedirectUri,BinUser),
                                    BinCode = erlang:list_to_binary(Code),
                                    Response = <<RedirectUri/binary,<<"?code=">>/binary,BinCode/binary,<<"&state=">>/binary,State/binary>>,
                                    {ok,SessionID} = idp_usermng:set_session(BinUser,?SESSION_TIME),
                                    Req2 = cowboy_req:set_resp_cookie(<<"session">>, SessionID, Req, #{port => 8180,  http_only => true}),
-                                   _Req3 = cowboy_req:reply(302, #{<<"Location">> => Response}, <<>>, Req2);
-                               _ ->
                                    logger:debug("adding missing scopes"),
-
                                    MissingScopes = is_in_list(BinScopes,UserScopes),
                                    [idp_usermng:add_scope(BinUser,S) || S <- MissingScopes],
-                                   logger:debug("Added User scopes: ~p~n",[MissingScopes])
-                           end;
+                                   logger:debug("Added User scopes: ~p~n",[MissingScopes]),
+                                   cowboy_req:reply(302, #{<<"Location">> => Response}, <<>>, Req2);
                        R -> 
-                           logger:debug("Scopes not allowed for RP/Clilent: ~p~n",[R])
+                           logger:debug("Scopes not allowed for RP/Clilent: ~p~n",[R]),
+                           cowboy_req:reply(405, #{}, <<>>, Req0)
                    end;
                {ok,false} ->
                    logger:debug("Bad password"),
@@ -72,7 +68,6 @@ method(<<"POST">>,Req0,Opts)->
                    logger:error("Error! ~p~n",[Default])
            end,
     {ok, Req1, Opts};
-
 
 method(<<"GET">>,Req0,Opts) ->
     #{response_type := ResponseType,
@@ -95,7 +90,6 @@ authorize(<<"GET">>, {undefined,undefined,undefined,undefined,undefined}, Req) -
      }, <<"<html><body>
         <a href=\"http://127.0.0.1:8180/authorize\?response_type\=code\&client_id\=test\&state\=xyz\&redirect_uri\=http://127.0.0.1:8180/\">send</a>
      </body></html>">>, Req);
-
 
 authorize(<<"GET">>, {<<"code">>,ClientId,RedirectUri,Scope,State}, Req) ->
     logger:debug("Auth GET"),
@@ -133,6 +127,7 @@ authorize(<<"GET">>, {<<"code">>,ClientId,RedirectUri,Scope,State}, Req) ->
                   end;
               false -> 
                   logger:debug("No session yet"),
+                  logger:debug("~p, ~p, ~p, ~p",[RedirectUri,ClientId,State,Scope]),
                   Page = [<<"<html><head>
                             <link rel=\"stylesheet\" type=\"text/css\" href=\"priv/login.css\"></head>
                             <body>
@@ -148,7 +143,8 @@ authorize(<<"GET">>, {<<"code">>,ClientId,RedirectUri,Scope,State}, Req) ->
                                       <input type=\"hidden\" name=\"state\" value=\"">>,State,<<"\"><br>
                                       <input type=\"hidden\" name=\"scope\" value=\"">>,Scope,<<"\"><br>
                                       <input type=\"submit\" value=\"Submit\">
-                                  </form>
+                                  </form>",
+                                  "<a href=\"/register?">>,<<"response_type=code&redirect_uri=">>, RedirectUri,<<"&client_id=">>, ClientId,<<"&scope=">>, Scope,<<"&state=">>, State,<<"\"> Register <a>
                                  </body></html>">>],
                   cowboy_req:reply(200, #{
                     <<"content-type">> => <<"text/html">>

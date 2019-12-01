@@ -1,0 +1,29 @@
+body {
+
+}
+p {
+    /*padding:0em;*/
+    margin:0em;
+}
+h1 {
+    width:50%;
+    margin: 0 auto;
+    padding:0em 1em;
+    background:black;
+    border-style:solid;
+    border-radius:0.25em 0.25em 0em 0em;
+    border-color:black;
+    border-width:1px;
+    color:white;
+}
+#login{
+    padding:2em;
+    width:50%;
+    margin: 0 auto;
+    border-style: solid;
+    border-width: 1px;
+    border-radius:0em 0em 0.5em 0.5em;
+}
+button {
+    margin:0em;
+}

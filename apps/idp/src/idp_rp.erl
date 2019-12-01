@@ -17,7 +17,7 @@
          terminate/2,
          code_change/3]).
 
--record(state, {id = undefined,codes=[],password=undefined,consents=undefined}).
+-record(state, {id = undefined,codes=[],password=undefined,consents=undefined,code_size=32}).
 -record(token, {access_token,token_type,expires_in,expired=true,refresh_token,scopes,created_time}).
 -define(SERVER, ?MODULE).
 -define(CODE_SIZE, 32).
@@ -35,6 +35,15 @@ init([Id]) ->
 handle_call({set_rp_pass,Pass}, _From, State) ->
     NewState = State#state{password=Pass},
     Reply={ok,Pass},
+    {reply, Reply, NewState};
+
+handle_call({set_code_size,NewCodeSize}, _From, #state{password = RP_Pass} = State) ->
+    %Not caring for access control for RP yet
+    %{Reply,NewState} = case RP_Pass == Pass of 
+    {Reply,NewState} = case true of 
+        true -> {ok,State#state{code_size=NewCodeSize}};
+        false -> {{error,bad_password},State}
+    end,
     {reply, Reply, NewState};
 
 handle_call({get_pwid}, _From, #state{id = Id, password = RP_Pass} = State) ->
@@ -161,8 +170,8 @@ handle_call({remove_scope_to_consent,{Consent,Scope}}, _From,  #state{consents =
     {reply, Reply, State};
 
 
-handle_call({authorize,RedirectUri,UserID}, _From, #state{codes = Codes} = State) ->
-    Code = create_code(?CODE_SIZE),
+handle_call({authorize,RedirectUri,UserID}, _From, #state{code_size = CodeSize, codes = Codes} = State) ->
+    Code = create_code(CodeSize),
     Reply = {ok, Code},
     NewState = State#state{codes=[{Code,{RedirectUri,UserID}}|Codes]},
     {reply, Reply, NewState};

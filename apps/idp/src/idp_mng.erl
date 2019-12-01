@@ -18,6 +18,7 @@
 
          get_rp/1,
          set_rp_pass/2,
+         set_rp_code_size/2,
          authorize/3,
          validate_code/3,
          unregister_rp/1,
@@ -84,6 +85,16 @@ handle_call({set_rp_pass,{RPId,Pass}}, _From, #state{rps = RPS} = State) ->
     Reply = case lists:keyfind(RPId,1,RPS) of
                            {RPId,RPPid}->
                                RP_Reply = gen_server:call(RPPid,{set_rp_pass,Pass}),
+                               RP_Reply;
+                           _ ->
+                               {error, not_registered}
+                       end,
+    {reply, Reply, State};
+
+handle_call({set_rp_code_size,{RPId,NewCodeSize}}, _From, #state{rps = RPS} = State) ->
+    Reply = case lists:keyfind(RPId,1,RPS) of
+                           {RPId,RPPid}->
+                               RP_Reply = gen_server:call(RPPid,{set_code_size,NewCodeSize}),
                                RP_Reply;
                            _ ->
                                {error, not_registered}
@@ -234,6 +245,7 @@ remove_scope_to_consent(RPId,Scope,Consent) ->gen_server:call(?MODULE,{remove_sc
 
 
 set_rp_pass(RPId,Pass) -> gen_server:call(?MODULE,{set_rp_pass,{RPId,Pass}}).
+set_rp_code_size(RPId,NewCodeSize) -> gen_server:call(?MODULE,{set_rp_code_size,{RPId,NewCodeSize}}).
 
 validate_code(ClientId,Code,RedirectUri) -> gen_server:call(?MODULE,{validate_code,{ClientId,Code,RedirectUri}}).
 authorize(ClientId,RedirectUri,UserId) -> gen_server:call(?MODULE,{authorize,{ClientId,RedirectUri,UserId}}).
