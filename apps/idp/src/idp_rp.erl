@@ -17,8 +17,16 @@
          terminate/2,
          code_change/3]).
 
--record(state, {id = undefined,codes=[],password=undefined,consents=undefined,code_size=32}).
+-record(state, {id = undefined,
+                codes=[],
+                password = undefined,
+                description = "",
+                refresh_expiry = 3600,
+                consents = undefined,
+                code_size = 32}).
+
 -record(token, {access_token,token_type,expires_in,expired=true,refresh_token,scopes,created_time}).
+
 -define(SERVER, ?MODULE).
 -define(CODE_SIZE, 32).
 -define(TOKEN_SIZE, 256).
@@ -46,8 +54,31 @@ handle_call({set_code_size,NewCodeSize}, _From, #state{password = RP_Pass} = Sta
     end,
     {reply, Reply, NewState};
 
+handle_call({get_code_size}, _From, #state{code_size = CodeSize} = State) ->
+    %Not caring for access control for RP yet
+    %{Reply,NewState} = case RP_Pass == Pass of 
+    Reply = {ok,CodeSize},
+    {reply, Reply, State};
+
+handle_call({get_refresh_expiry}, _From, #state{refresh_expiry=RefreshExpiry} = State) ->
+    Reply = {ok,RefreshExpiry},
+    {reply, Reply, State};
+
+handle_call({set_refresh_expiry,RefreshExpiry}, _From,  State) ->
+    NewState = State#state{refresh_expiry=RefreshExpiry},
+    Reply = {ok},
+    {reply, Reply, NewState};
+
 handle_call({get_pwid}, _From, #state{id = Id, password = RP_Pass} = State) ->
     Reply = {ok,{Id,RP_Pass}},
+    {reply, Reply, State};
+
+handle_call({set_description,Desc}, _From, State) ->
+    NewState = State#state{description=Desc},
+    Reply = {ok},
+    {reply, Reply, NewState};
+handle_call({get_description}, _From, #state{description = Desc} = State) ->
+    Reply = {ok,Desc},
     {reply, Reply, State};
 
 
@@ -176,7 +207,7 @@ handle_call({authorize,RedirectUri,UserID}, _From, #state{code_size = CodeSize, 
     NewState = State#state{codes=[{Code,{RedirectUri,UserID}}|Codes]},
     {reply, Reply, NewState};
 
-handle_call({validate_code,{Code,RedirectUri}}, _From, #state{codes = Codes} = State) ->
+handle_call({validate_code,{Code,RedirectUri}}, _From, #state{refresh_expiry  = ExpiresIn, codes = Codes} = State) ->
     logger:debug("Validate_code: ~p",[Code]),
     {Reply,NewState} = case lists:keyfind(Code,1,Codes) of
                            {Code,{FRedirectUri,User}} ->
@@ -187,7 +218,6 @@ handle_call({validate_code,{Code,RedirectUri}}, _From, #state{codes = Codes} = S
                                        AccessToken = create_code(?TOKEN_SIZE),
                                        RefreshToken = create_code(?TOKEN_SIZE),
                                        TokenType = "Bearer",
-                                       ExpiresIn= "3600",
                                        Token = #token{access_token=AccessToken,token_type=TokenType,expires_in=ExpiresIn,expired=false,refresh_token=RefreshToken,created_time=erlang:timestamp()},
                                        idp_usermng:set_token(User,Token),
                                        erlang:spawn(?MODULE,clean_token,[erlang:self(),AccessToken,list_to_integer(ExpiresIn)]),

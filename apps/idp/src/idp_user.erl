@@ -113,7 +113,6 @@ handle_call({add_scope,Scope}, _From, #state{scopes=Scopes} = State) ->
     Reply = ok,
     {reply, Reply, NewState};
 
-
 handle_call(Request, _From, State) ->
     logger:debug("Request ignored: ~p",[Request]),
     {reply, ignored, State}.
@@ -145,5 +144,6 @@ create_code(Size) ->
          47 -> 95;
          L -> L
      end || X<- base64:encode_to_string(BinToken)].
+
 hash_pw(Password) -> 
     crypto:hash(sha256,Password).

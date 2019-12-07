@@ -38,31 +38,22 @@ method(<<"GET">>,Req0,Opts) ->
     RPName = binary_to_atom(cowboy_req:binding(rp,Req0),utf8),
     {ok,Consents} = idp_mng:get_consents(RPName),
 
-    CList = [["<li class=\"list-group-item\">"++atom_to_list(Consent)++"</li><ul>",["<li class=\"list-group-item\">"++atom_to_list(CScope)++"</li>"|| CScope <- get_scopes_from_consent(RPName,Consent)],"</ul>"] || Consent <- Consents],
+    CList = [["<li class=\"list-group-item\">"++atom_to_list(Consent)++"</li><ul>",
+              ["<li class=\"list-group-item\">"++atom_to_list(CScope)++"</li>"|| 
+               CScope <- get_scopes_from_consent(RPName,Consent)],"</ul>"] 
+             || Consent <- Consents],
+
     List = ["<h2>Scopes allowed</h2>","<ul class=\"list-group\">",CList,"</ul>"],
     {ok,CodeSize} = idp_mng:get_rp_code_size(RPName),
     PrintCodeSize = integer_to_list(CodeSize),
-    Reg = 
-    ["<form method=\"post\">
-      <div class=\"form-group row\">
-        <label for=\"addScope\" class=\"col-sm-2 col-form-label\">Add scope</label>
-        <div class=\"col-sm-10\">
-          <input type=\"text\" name=\"new_scope\" class=\"form-control\" id=\"addScope\" >  
-        </div>
-      </div>
-      </form>",
-      "<form method=\"post\">
-      <div class=\"form-group row\">
-        <label for=\"codeSize\" class=\"col-sm-2 col-form-label\">Code size</label>
-        <div class=\"col-sm-10\">
-          <input type=\"number\" name=\"new_code_size\" class=\"form-control\" value=\"",PrintCodeSize,"\" id=\"codeSize\" >  
-        </div>
-      </div>
-      </form>"],
 
-    %CChange = "<form  method=\"post\">Set Code size:<input type=\"number\" name=\"new_code_size\"> <input type=\"submit\" value=\"Submit\"> </form>",
+    {ok,RefreshTime} = idp_mng:get_rp_refresh_expiry(RPName),
+    Refresh = integer_to_list(RefreshTime),
+    RPNameList = atom_to_list(RPName),
 
-    Content = layout:content([List,Reg]),
+    SettingsRead = ["<h2>Settings</h2>",layout:rp_desc(RPNameList,"",Refresh,RPNameList,PrintCodeSize)],
+
+    Content = layout:content(List,SettingsRead),
     Req = cowboy_req:reply(200, #{
       <<"content-type">> => <<"text/html">>
      }, [layout:header("RP Settings"),Content], Req0),

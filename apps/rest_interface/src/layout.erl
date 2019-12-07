@@ -1,5 +1,5 @@
 -module(layout).
--export([content/1,header/1,client/3,headers/0]).
+-export([rp_desc/5,content/2,content/1,header/1,client/3,headers/0]).
 
 content(Content) -> 
     ["<html>",headers(),
@@ -9,6 +9,22 @@ content(Content) ->
      "</html>"
     ].
 
+content(Left,Right) -> 
+    ["<html>",headers(),
+     "<body>",
+     "<div class=\"container-fluid\">
+      <div class=\"row\">
+        <div class=\"col-4\">",
+         Left 
+     ,"</div>
+        <div class=\"col-8\">",
+         Right
+     ,"</div>
+      </div>
+    </div>",
+     "</body>",
+     "</html>"
+    ].
 header(Focus) -> 
     ["<header>",
          "<nav class=\"navbar navbar-expand-md navbar-dark fixed-top bg-dark\">",
@@ -67,6 +83,24 @@ client(Name,ClientID,Desc) ->
     </div>"].
 
 
+rp_desc(Name,Desc,RefreshTime,ClientId,CodeSize) ->
+    [
+    "<dl class=\"row\">
+      <dt class=\"col-3\">Name</dt>
+      <dd class=\"col-9\">",Name,"</dd>
 
+      <dt class=\"col-3\">Client id</dt>
+      <dd class=\"col-9\">",ClientId,"</dd>
 
+      <dt class=\"col-3\">Description</dt>
+      <dd class=\"col-9\">",Desc,"</dd>
+
+      <dt class=\"col-3\">Expiration time for Refresh tokens</dt>
+      <dd class=\"col-9\">",RefreshTime,"</dd>
+
+      <dt class=\"col-3\">Length of Code in Authorization Code Flow</dt>
+      <dd class=\"col-9\">",CodeSize,"</dd>
+
+    </dl>"
+    ].
 

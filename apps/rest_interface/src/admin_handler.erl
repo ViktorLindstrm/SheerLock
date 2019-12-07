@@ -9,18 +9,16 @@ init(Req0, Opts) ->
 
 method(<<"GET">>,Req0,Opts)->
     {ok,RPs} = idp_mng:get_rps(),
-    RPList  = [layout:client(atom_to_list(RP),atom_to_list(RP),extract_code(RP)) || RP <- RPs],
+    RPList  = [layout:client(atom_to_list(RP),atom_to_list(RP),get_desc(RP)) || RP <- RPs],
     List = ["<div class=\"card-columns\">",RPList,"</div>"],
     Reg = "<form action=\"/admin\" method=\"post\">Register Relying Party<br>Name:<input type=\"text\" name=\"rp_name\"> <input type=\"submit\" value=\"Submit\"> </form>",
-
-    Content = [<<"<table>">>,List,"</table>","</br>", Reg],
+    Content = [List, Reg],
 
     LayoutContent = layout:content(Content),
     Req = cowboy_req:reply(200, #{
       <<"content-type">> => <<"text/html">>
      }, [layout:header("Admin"),LayoutContent], Req0),
     {ok, Req, Opts};
-
 
 method(<<"POST">>,Req0,Opts)->
 
@@ -54,7 +52,10 @@ method(<<"POST">>,Req0,Opts)->
 
     {ok, Req1, Opts}.
 
-
+get_desc(RP) ->
+    {ok,Desc} = idp_mng:get_rp_desc(RP),
+    Desc.
+    
 extract_code(RP) ->
     {ok,{_,Code}} = idp_mng:get_rp(RP),
     Code.

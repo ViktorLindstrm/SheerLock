@@ -17,8 +17,13 @@
          remove_scope_to_consent/3,
 
          get_rp/1,
+         set_rp_desc/2,
+         get_rp_desc/1,
+         get_rp_refresh_expiry/1,
+         set_rp_refresh_expiry/2,
          set_rp_pass/2,
          set_rp_code_size/2,
+         get_rp_code_size/1,
          authorize/3,
          validate_code/3,
          unregister_rp/1,
@@ -101,6 +106,55 @@ handle_call({set_rp_code_size,{RPId,NewCodeSize}}, _From, #state{rps = RPS} = St
                        end,
     {reply, Reply, State};
 
+handle_call({get_rp_code_size,RPId}, _From, #state{rps = RPS} = State) ->
+    Reply = case lists:keyfind(RPId,1,RPS) of
+                {RPId,RPPid} ->
+                    {ok,_Scopes} = gen_server:call(RPPid,{get_code_size});
+                false ->
+                    {error, no_such_rp}
+            end,
+    {reply, Reply, State};
+
+
+handle_call({get_rp_refresh_expiry,RPId}, _From, #state{rps = RPS} = State) ->
+    Reply = case lists:keyfind(RPId,1,RPS) of
+                {RPId,RPPid} ->
+                    {ok,_RefreshExpiry} = gen_server:call(RPPid,{get_refresh_expiry});
+                false ->
+                    {error, no_such_rp}
+            end,
+    {reply, Reply, State};
+
+handle_call({set_rp_refresh_expiry,RPId}, _From, #state{rps = RPS} = State) ->
+    Reply = case lists:keyfind(RPId,1,RPS) of
+                {RPId,RPPid} ->
+                    {ok} = gen_server:call(RPPid,{set_refresh_expiry});
+                false ->
+                    {error, no_such_rp}
+            end,
+    {reply, Reply, State};
+
+
+handle_call({get_rp_description,RPId}, _From, #state{rps = RPS} = State) ->
+    Reply = case lists:keyfind(RPId,1,RPS) of
+                {RPId,RPPid} ->
+                    {ok,_Description} = gen_server:call(RPPid,{get_description});
+                false ->
+                    {error, no_such_rp}
+            end,
+    {reply, Reply, State};
+
+handle_call({set_rp_description,{RPId,Desc}}, _From, #state{rps = RPS} = State) ->
+    Reply = case lists:keyfind(RPId,1,RPS) of
+                {RPId,RPPid} ->
+                    {ok} = gen_server:call(RPPid,{set_description,Desc});
+                false ->
+                    {error, no_such_rp}
+            end,
+    {reply, Reply, State};
+
+
+
 handle_call({unregister_rp,RPId}, _From, #state{rps = RPS} = State) ->
     {Reply,NewState} = case lists:keyfind(RPId,1,RPS) of
                            {RPId,RPPid} ->
@@ -147,6 +201,7 @@ handle_call({get_consents,RPId}, _From, #state{rps = RPS} = State) ->
                     {error, no_such_rp}
             end,
     {reply, Reply, State};
+
 
 
 handle_call({add_scope,{RPId,Scope}}, _From, #state{rps = RPS} = State) ->
@@ -234,6 +289,7 @@ get_unconfirmed_scopes(RPId) -> gen_server:call(?MODULE,{get_unconfirmed_scopes,
 add_scope(RPId,Scope) -> gen_server:call(?MODULE,{add_scope,{RPId,Scope}}).
 remove_scope(RPId,Scope) -> gen_server:call(?MODULE,{remove_scope,{RPId,Scope}}).
 
+
 get_consents(RPId) -> gen_server:call(?MODULE,{get_consents,RPId}).
 add_consent(RPId,Consent) -> gen_server:call(?MODULE,{add_consent,{RPId,Consent}}).
 remove_consent(RPId,Consent) -> gen_server:call(?MODULE,{remove_consent,{RPId,Consent}}).
@@ -246,6 +302,7 @@ remove_scope_to_consent(RPId,Scope,Consent) ->gen_server:call(?MODULE,{remove_sc
 
 set_rp_pass(RPId,Pass) -> gen_server:call(?MODULE,{set_rp_pass,{RPId,Pass}}).
 set_rp_code_size(RPId,NewCodeSize) -> gen_server:call(?MODULE,{set_rp_code_size,{RPId,NewCodeSize}}).
+get_rp_code_size(RPId) -> gen_server:call(?MODULE,{get_rp_code_size,RPId}).
 
 validate_code(ClientId,Code,RedirectUri) -> gen_server:call(?MODULE,{validate_code,{ClientId,Code,RedirectUri}}).
 authorize(ClientId,RedirectUri,UserId) -> gen_server:call(?MODULE,{authorize,{ClientId,RedirectUri,UserId}}).
@@ -256,3 +313,9 @@ reg_user(Username,Password) -> idp_usermng:reg_user(Username,Password).
 unreg_user(Username,Password) -> idp_usermng:unreg_user(Username,Password). 
 validate_user(Username,Password) -> idp_usermng:verify(Username,Password).
 
+
+set_rp_desc(RPId,Desc) -> gen_server:call(?MODULE,{set_rp_description,{RPId,Desc}}).
+get_rp_desc(RPId) -> gen_server:call(?MODULE,{get_rp_description,RPId}).
+
+get_rp_refresh_expiry(RPId) -> gen_server:call(?MODULE,{get_rp_refresh_expiry,RPId}).
+set_rp_refresh_expiry(RPId,RefreshExpiry) -> gen_server:call(?MODULE,{set_rp_refresh_expiry,{RPId,RefreshExpiry}}).
